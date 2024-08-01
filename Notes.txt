@@ -1,0 +1,508 @@
+
+
+Hosting Internet With A RPI
+
+
+
+
+sudo apt update
+sudo apt upgrade -y
+sudo apt install -y hostapd dnsmasq iptables-persistent
+
+sudo gedit /etc/hostapd/hostapd.conf
+
+
+ap.sh to use bash to start and stop the wifi ap
+run.sh starts the python version in a venv
+
+
+
+
+
+
+interface=wlan0
+driver=nl80211
+ssid=MyRaspberryPiAP
+hw_mode=g
+channel=6
+wmm_enabled=0
+macaddr_acl=0
+auth_algs=1
+ignore_broadcast_ssid=0
+wpa=2
+wpa_passphrase=yourpassword
+wpa_key_mgmt=WPA-PSK
+wpa_pairwise=TKIP
+rsn_pairwise=CCMP
+
+
+
+
+
+sudo gedit /etc/default/hostapd
+
+
+DAEMON_CONF="/etc/hostapd/hostapd.conf"
+
+
+
+sudo gedit /etc/dnsmasq.conf
+
+interface=wlan0
+dhcp-range=192.168.150.2,192.168.150.20,12h
+
+
+
+sudo gedit /etc/iptables/rules.v4
+
+
+
+*nat
+:PREROUTING ACCEPT [0:0]
+:POSTROUTING ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+-A POSTROUTING -o eth0 -j MASQUERADE
+COMMIT
+*filter
+:INPUT ACCEPT [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+COMMIT
+
+
+
+
+
+sudo gedit /etc/sysctl.conf
+
+net.ipv4.ip_forward=1
+
+
+
+sudo sysctl -p
+
+
+
+
+hosting script
+
+# python3 ap_manager.py start
+#
+#
+import os
+import subprocess
+import logging
+
+# Configuration
+LOGGING=True
+LOG_FILE='/var/log/ap_manager.log'
+SSID='MyRaspberryPiAP'
+WPA_PASSPHRASE='yourpassword'
+
+# Set up logging
+if LOGGING:
+    logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def log(message):
+    if LOGGING:
+        logging.info(message)
+
+def setup_wifi_ap():
+    try:
+        log('Starting Wi-Fi Access Point setup...')
+        # Start hostapd
+        subprocess.run(['sudo', 'systemctl', 'start', 'hostapd'], check=True)
+        log('hostapd service started successfully.')
+
+        # Start dnsmasq
+        subprocess.run(['sudo', 'systemctl', 'start', 'dnsmasq'], check=True)
+        log('dnsmasq service started successfully.')
+
+    except subprocess.CalledProcessError as e:
+        log(f'Error occurred: {e}')
+        raise
+
+def stop_wifi_ap():
+    try:
+        log('Stopping Wi-Fi Access Point services...')
+        # Stop hostapd
+        subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
+        log('hostapd service stopped successfully.')
+
+        # Stop dnsmasq
+        subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
+        log('dnsmasq service stopped successfully.')
+
+    except subprocess.CalledProcessError as e:
+        log(f'Error occurred: {e}')
+        raise
+
+if __name__ == '__main__':
+    action=input('Enter action (start/stop): ').strip().lower()
+    if action == 'start':
+        setup_wifi_ap()
+    elif action == 'stop':
+        stop_wifi_ap()
+    else:
+        print('Invalid action. Please enter "start" or "stop".')
+
+
+
+
+
+
+
+Additional Considerations
+Firewall Rules: You might need to configure additional firewall rules based on your network security requirements.
+
+Auto-Start on Boot: To make sure the services start on boot, you can enable hostapd and dnsmasq:
+
+
+sudo systemctl enable hostapd
+sudo systemctl enable dnsmasq
+
+
+
+and enable nat translation in iptables
+
+
+sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+sudo iptables -A FORWARD -i wlan0 -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+sudo iptables -A FORWARD -i eth0 -o wlan0 -j ACCEPT
+
+sudo sh -c 'iptables-save > /etc/iptables/rules.v4'
+
+Enable thecorrect ports
+
+# dhcp
+
+sudo iptables -A INPUT -p udp --dport 67 -j ACCEPT
+sudo iptables -A INPUT -p udp --dport 68 -j ACCEPT
+
+# dns
+
+sudo iptables -A INPUT -p udp --dport 53 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 53 -j ACCEPT
+
+
+# web
+
+sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+
+
+sudo sh -c 'iptables-save > /etc/iptables/rules.v4'
+
+
+
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Using ufw:
+Allow DHCP Traffic:
+
+
+sudo ufw allow 67/udp
+sudo ufw allow 68/udp
+Allow DNS Traffic:
+
+
+sudo ufw allow 53/udp
+sudo ufw allow 53/tcp
+Allow HTTP/HTTPS Traffic (if applicable):
+
+
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+Enable ufw (if not already enabled):
+
+
+sudo ufw enable
+Check ufw Status:
+
+
+sudo ufw status verbose
+**3. Verify Firewall Rules
+After configuring the firewall, verify that the rules are applied correctly:
+
+Check iptables Rules:
+
+
+sudo iptables -L -n -v
+Check ufw Rules:
+
+
+sudo ufw status verbose
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1. hostapd Configuration
+File Path: /etc/hostapd/hostapd.conf
+Description: Configuration file for hostapd, which sets up the Wi-Fi access point.
+2. dnsmasq Configuration
+File Path: /etc/dnsmasq.conf
+
+Description: Main configuration file for dnsmasq, which handles DHCP and DNS services.
+
+Additional Directory (if used): /etc/dnsmasq.d/
+
+Description: This directory may contain additional configuration files or overrides for dnsmasq.
+3. Network Interface Configuration
+File Path (Debian/Ubuntu): /etc/network/interfaces or /etc/netplan/*.yaml
+
+Description: Configuration for network interfaces. On some systems, network configurations are managed with netplan instead of traditional /etc/network/interfaces.
+
+File Path (Red Hat/CentOS/Fedora): /etc/sysconfig/network-scripts/ifcfg-wlan0
+
+Description: Configuration for network interfaces (specific to Red Hat-based distributions).
+
+4. IP Tables Configuration
+File Path: /etc/iptables/rules.v4
+
+Description: Saves the iptables rules for IPv4.
+
+File Path: /etc/iptables/rules.v6
+
+Description: Saves the iptables rules for IPv6 (if applicable).
+
+5. Systemd Service Files
+File Path: /lib/systemd/system/hostapd.service
+
+Description: Systemd service file for hostapd.
+
+File Path: /lib/systemd/system/dnsmasq.service
+
+Description: Systemd service file for dnsmasq.
+
+6. System Logs
+File Path: /var/log/syslog or /var/log/messages
+
+Description: General system logs which can include information related to hostapd and dnsmasq services.
+
+File Path: /var/log/hostapd.log or /var/log/dnsmasq.log (if configured)
+
+Description: Specific logs for hostapd and dnsmasq, if you have set up logging for these services.
+
+7. Custom Scripts
+File Path: Location where your custom scripts are stored (e.g., /home/user/scripts/ or /usr/local/bin/).
+Description: Any custom scripts you created for managing the access point.
+
+
+
+Backing Up The Configs!
+
+
+# Create backup directory
+mkdir -p /home/jay/Documents/Settings_Backup/wifi-ap/Config_Backup
+
+# Backup hostapd configuration
+sudo cp /etc/hostapd/hostapd.conf /home/jay/Documents/Settings_Backup/wifi-ap/Config_Backup/hostapd.conf
+
+# Backup dnsmasq configuration
+sudo cp /etc/dnsmasq.conf /home/jay/Documents/Settings_Backup/wifi-ap/Config_Backup/dnsmasq.conf
+
+# Backup dnsmasq additional configurations (if applicable)
+sudo cp -r /etc/dnsmasq.d/ /home/jay/Documents/Settings_Backup/wifi-ap/Config_Backup/dnsmasq.d/
+
+# Backup network interface configurations
+sudo cp /etc/network/interfaces /home/jay/Documents/Settings_Backup/wifi-ap/Config_Backup/interfaces
+sudo cp -r /etc/netplan/ /home/jay/Documents/Settings_Backup/wifi-ap/Config_Backup/netplan/
+
+# Backup IP tables rules
+sudo cp /etc/iptables/rules.v4 /home/jay/Documents/Settings_Backup/wifi-ap/Config_Backup/rules.v4
+sudo cp /etc/iptables/rules.v6 /home/jay/Documents/Settings_Backup/wifi-ap/Config_Backup/rules.v6
+
+# Backup systemd service files
+sudo cp /lib/systemd/system/hostapd.service /home/jay/Documents/Settings_Backup/wifi-ap/Config_Backup/hostapd.service
+sudo cp /lib/systemd/system/dnsmasq.service /home/jay/Documents/Settings_Backup/wifi-ap/Config_Backup/dnsmasq.service
+
+# Backup custom scripts
+cp /home/user/scripts/* /home/jay/Documents/Settings_Backup/wifi-ap/Config_Backup/
+
+
+
+# Restore Script!
+
+#!/bin/bash
+
+# Define backup directory
+BACKUP_DIR="/home/jay/Documents/Settings_Backup/wifi-ap/Config_Backup"
+
+# Function to restore files
+restore_file() {
+    local src="$1"
+    local dest="$2"
+    
+    if [ -f "$src" ]; then
+        sudo cp "$src" "$dest"
+        echo "Restored $src to $dest"
+    else
+        echo "Source file $src does not exist. Skipping."
+    fi
+}
+
+# Function to restore directories
+restore_dir() {
+    local src="$1"
+    local dest="$2"
+    
+    if [ -d "$src" ]; then
+        sudo cp -r "$src" "$dest"
+        echo "Restored directory $src to $dest"
+    else
+        echo "Source directory $src does not exist. Skipping."
+    fi
+}
+
+# Restore hostapd configuration
+restore_file "$BACKUP_DIR/hostapd.conf" "/etc/hostapd/hostapd.conf"
+
+# Restore dnsmasq configuration
+restore_file "$BACKUP_DIR/dnsmasq.conf" "/etc/dnsmasq.conf"
+
+# Restore dnsmasq additional configurations (if applicable)
+restore_dir "$BACKUP_DIR/dnsmasq.d/" "/etc/dnsmasq.d/"
+
+# Restore network interface configurations
+restore_file "$BACKUP_DIR/interfaces" "/etc/network/interfaces"
+restore_dir "$BACKUP_DIR/netplan/" "/etc/netplan/"
+
+# Restore IP tables rules
+restore_file "$BACKUP_DIR/rules.v4" "/etc/iptables/rules.v4"
+restore_file "$BACKUP_DIR/rules.v6" "/etc/iptables/rules.v6"
+
+# Restore systemd service files
+restore_file "$BACKUP_DIR/hostapd.service" "/lib/systemd/system/hostapd.service"
+restore_file "$BACKUP_DIR/dnsmasq.service" "/lib/systemd/system/dnsmasq.service"
+
+# Restore custom scripts (if needed)
+restore_dir "$BACKUP_DIR/scripts/" "/home/user/scripts/"
+
+# Reload systemd services
+sudo systemctl daemon-reload
+
+# Restart services to apply changes
+sudo systemctl restart hostapd
+sudo systemctl restart dnsmasq
+
+echo "Restore process completed."
+
+
+
+
+
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+To uninstall and put back as it was
+
+1. Stop the Services
+You need to stop the hostapd and dnsmasq services that you started:
+
+
+sudo systemctl stop hostapd
+sudo systemctl stop dnsmasq
+2. Disable the Services from Auto-Starting
+To prevent hostapd and dnsmasq from starting on boot:
+
+
+sudo systemctl disable hostapd
+sudo systemctl disable dnsmasq
+3. Restore Network Configuration
+Remove hostapd Configuration:
+
+Remove the hostapd configuration file:
+
+
+sudo rm /etc/hostapd/hostapd.conf
+Also, make sure hostapd is not configured to use this file by checking /etc/default/hostapd and removing or commenting out the DAEMON_CONF line if necessary:
+
+
+sudo gedit /etc/default/hostapd
+Comment out or remove:
+
+
+#DAEMON_CONF="/etc/hostapd/hostapd.conf"
+Restore dnsmasq Configuration:
+
+If you modified /etc/dnsmasq.conf, you should either restore it from a backup or remove the custom configuration. If you didn't make a backup, you might need to reinstall dnsmasq to restore the default configuration:
+
+
+sudo apt-get install --reinstall dnsmasq
+You can also manually remove the custom configurations from /etc/dnsmasq.conf if they were added.
+
+Remove iptables Rules:
+
+Restore the default iptables rules by removing or editing the rules.v4 file:
+
+
+sudo rm /etc/iptables/rules.v4
+You might want to reset iptables rules to default settings as follows:
+
+
+sudo iptables -t nat -F
+sudo iptables -t filter -F
+To make sure these changes are not permanent, you can use:
+
+
+sudo netfilter-persistent flush
+And then re-save your default settings:
+
+
+sudo netfilter-persistent save
+Disable IP Forwarding:
+
+Edit the /etc/sysctl.conf file to disable IP forwarding:
+
+
+sudo gedit /etc/sysctl.conf
+Comment out or remove the line:
+
+
+#net.ipv4.ip_forward=1
+Apply the change:
+
+
+sudo sysctl -p
+4. Reboot the Raspberry Pi
+After performing these steps, reboot your Raspberry Pi to ensure that all changes take effect:
+
+
+sudo reboot
+Summary of Commands
+Here's a summary of the commands to run:
+
+
+# Stop and disable services
+sudo systemctl stop hostapd
+sudo systemctl stop dnsmasq
+sudo systemctl disable hostapd
+sudo systemctl disable dnsmasq
+
+# Remove custom configurations
+sudo rm /etc/hostapd/hostapd.conf
+sudo gedit /etc/default/hostapd   # Comment out DAEMON_CONF line
+sudo rm /etc/dnsmasq.conf
+sudo apt-get install --reinstall dnsmasq
+
+# Restore iptables rules
+sudo rm /etc/iptables/rules.v4
+sudo iptables -t nat -F
+sudo iptables -t filter -F
+sudo netfilter-persistent flush
+
+# Disable IP forwarding
+sudo gedit /etc/sysctl.conf   # Comment out net.ipv4.ip_forward=1
+sudo sysctl -p
+
+# Reboot
+sudo reboot
+
+
+
+
