@@ -8,7 +8,7 @@
 LOGGING=false
 LOG_FILE='/var/log/ap_manager.log'
 SSID='JNET'
-WPA_PASSPHRASE='jld161161'
+WPA_PASSPHRASE='password'
 
 # Function to log messages
 log() {
