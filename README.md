@@ -27,7 +27,7 @@ To set up your Wi-Fi access point, follow these steps:
 Clone the Repository:
 
 
-git clone https://github.com/yourusername/your-repo-name.git
+git clone [https://github.com/yourusername/your-repo-name.git](https://github.com/jamieduk/RPI_WIFI_AP.git
 cd your-repo-name
 Run the Setup Script:
 
