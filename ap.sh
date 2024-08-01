@@ -1,4 +1,5 @@
 #!/bin/bash
+# (c) J~net 2024
 #
 # ./test.sh start
 #
@@ -7,7 +8,7 @@
 LOGGING=false
 LOG_FILE='/var/log/ap_manager.log'
 SSID='JNET'
-WPA_PASSPHRASE='password'
+WPA_PASSPHRASE='jld161161'
 
 # Function to log messages
 log() {
