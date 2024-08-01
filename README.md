@@ -26,14 +26,12 @@ To set up your Wi-Fi access point, follow these steps:
 
 Clone the Repository:
 
-bash
-Copy code
+
 git clone https://github.com/yourusername/your-repo-name.git
 cd your-repo-name
 Run the Setup Script:
 
-bash
-Copy code
+
 sudo ./setup_wifi_ap.sh
 This script installs necessary packages and starts the required services.
 
@@ -42,8 +40,7 @@ Hostapd Configuration:
 
 Edit /etc/hostapd/hostapd.conf with your desired Wi-Fi settings. Example configuration:
 
-ini
-Copy code
+
 interface=wlan0
 driver=nl80211
 ssid=YOUR_SSID
@@ -58,8 +55,7 @@ Dnsmasq Configuration:
 
 Edit /etc/dnsmasq.conf with the following settings:
 
-conf
-Copy code
+
 interface=wlan0
 dhcp-range=192.168.150.2,192.168.150.20,12h
 Ensure the interface and dhcp-range match your network configuration.
@@ -68,27 +64,23 @@ Backup and Restore
 Backup
 To back up your configuration files:
 
-bash
-Copy code
+
 sudo ./backup_config.sh
 Restore
 To restore from a backup:
 
-bash
-Copy code
+
 sudo ./restore_backup.sh
 Ensure the backup directory is correctly set in the restore script.
 
 Usage
 Start Wi-Fi Access Point:
 
-bash
-Copy code
+
 sudo ./start_wifi_ap.sh
 Stop Wi-Fi Access Point:
 
-bash
-Copy code
+
 sudo ./stop_wifi_ap.sh
 License
 This project is licensed under the MIT License - see the LICENSE file for details.
